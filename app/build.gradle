@@ -1,0 +1,45 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing comes from environment variables (set by the GitHub workflow from repo secrets).
+def ksPath = System.getenv("GK_KEYSTORE")
+def hasKey = ksPath != null && new File(ksPath).exists()
+
+android {
+    namespace 'com.gozklavyesi.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.gozklavyesi.app'
+        minSdk 26
+        targetSdk 35
+        versionCode((System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger())
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        if (hasKey) {
+            release {
+                storeFile file(ksPath)
+                storePassword System.getenv("GK_STORE_PASSWORD")
+                keyAlias System.getenv("GK_KEY_ALIAS")
+                keyPassword System.getenv("GK_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasKey) signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }
