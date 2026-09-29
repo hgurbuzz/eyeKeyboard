@@ -7,33 +7,41 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-latest 19 Ekim'de Ubuntu 26'ya geçiyor; sürprizleri önlemek için sabitlendi
+    runs-on: ubuntu-24.04
     env:
       HAS_KEY: ${{ secrets.KEYSTORE_BASE64 != '' }}
+      GRADLE_VERSION: '8.10.2'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # Android SDK runner imajında zaten kurulu (ANDROID_HOME tanımlı);
+      # setup-android ve setup-gradle aksiyonlarına gerek yok.
+      - name: Gradle kur
+        run: |
+          curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o "$RUNNER_TEMP/gradle.zip"
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gradle-${GRADLE_VERSION}/bin" >> "$GITHUB_PATH"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.10.2'
+      - name: Android SDK lisansları
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      # 1) Test APK: install directly on the phone / tablet
+      # 1) Test APK: telefona / tablete doğrudan kurulur
       - name: Test APK (debug)
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: goz-klavyesi-test-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      # 2) Signed APK + AAB for Google Play (only when the signing secrets exist)
+      # 2) Google Play için imzalı APK + AAB (yalnızca imza secret'ları varsa)
       - name: İmzalı sürüm (Play Store)
         if: env.HAS_KEY == 'true'
         env:
@@ -46,7 +54,7 @@ jobs:
           export GK_KEYSTORE="$RUNNER_TEMP/upload.jks"
           gradle assembleRelease bundleRelease --no-daemon --stacktrace
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: env.HAS_KEY == 'true'
         with:
           name: goz-klavyesi-play-store
